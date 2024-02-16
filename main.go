@@ -17,7 +17,7 @@ var (
 	mode      = flag.String("mode", "stdout", "Mode: stdout or file")
 	logGroup  = flag.String("log-group", "", "Log group name")
 	logStream = flag.String("log-stream", "", "Log stream name (comma separated)")
-	profile   = flag.String("p", "default", "aws profile name")
+	profile   = flag.String("p", "", "aws profile name")
 )
 
 func splitLogStreamNames(logStream string) []string {

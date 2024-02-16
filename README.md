@@ -9,7 +9,7 @@ This is a simple Go application that demonstrates how to use the AWS SDK for Go 
 1. Install Go
 2. Run the command to install this cli
 ```bash
-go install github.com/mickeey2525/awslogs-go
+go install github.com/mickeey2525/awslogs-go@latest
 ```
 
 ## How to use
