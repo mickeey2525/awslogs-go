@@ -1,6 +1,6 @@
 module github.com/mickeey2525/awslogs-go
 
-go 1.21.7
+go 1.21
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.25.0 // indirect
