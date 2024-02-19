@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -37,20 +38,24 @@ func GetLogEvents(client *cloudwatchlogs.Client, logGroupName, logStreamName str
 	for {
 		result, err := client.GetLogEvents(context.Background(), input)
 		if err != nil {
-			fmt.Printf("failed to get log events for stream %s, %v\n", logStreamName, err)
+			log.Printf("Failed to get log events for stream %s: %v\n", logStreamName, err)
 			return
 		}
 
 		for _, event := range result.Events {
+			eventTime := time.UnixMilli(*event.Timestamp).UTC()
+			// Truncate the timestamp to the start of the day (yyyy-mm-dd)
+			eventDate := time.Date(eventTime.Year(), eventTime.Month(), eventTime.Day(), 0, 0, 0, 0, eventTime.Location())
+
 			logChannel <- LogEvent{
 				LogStreamName: logStreamName,
-				Timestamp:     startTime,
+				Timestamp:     eventDate,
 				Message:       *event.Message,
 			}
 		}
 
 		if lastToken != nil && result.NextBackwardToken != nil && *lastToken == *result.NextBackwardToken {
-			return
+			break
 		}
 
 		lastToken = result.NextBackwardToken
@@ -69,31 +74,50 @@ func WriteLogEvents(logChannel <-chan LogEvent, modeStr string) {
 		log.Fatalf("Invalid mode: %s", modeStr)
 	}
 
+	fileHandles := make(map[string]*os.File)
+	var fileMutex sync.Mutex
+
 	if mode == ModeFile {
-		for logEvent := range logChannel {
+		defer func() {
+			fileMutex.Lock()
+			defer fileMutex.Unlock()
+			for _, file := range fileHandles {
+				err := file.Close()
+				if err != nil {
+					return
+				}
+			}
+		}()
+	}
+
+	for logEvent := range logChannel {
+		if mode == ModeFile {
 			fileName := fmt.Sprintf("%s_%s.log", logEvent.LogStreamName, logEvent.Timestamp.Format("2006-01-02"))
-			file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			if err != nil {
-				log.Fatalf("failed to open file: %v", err)
+			fileMutex.Lock()
+			file, exists := fileHandles[fileName]
+			if !exists {
+				var err error
+				file, err = os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					log.Printf("Failed to open file %s: %v", fileName, err)
+					fileMutex.Unlock()
+					continue
+				}
+				fileHandles[fileName] = file
 			}
+			fileMutex.Unlock()
+
 			writer := bufio.NewWriter(file)
-			_, err = writer.WriteString(logEvent.Message + "\n")
-			if err != nil {
-				log.Fatalf("failed to write to file: %v", err)
+			if _, err := writer.WriteString(fmt.Sprintf("%s: %s\n", logEvent.Timestamp.Format(time.RFC3339), logEvent.Message)); err != nil {
+				log.Printf("Failed to write to file %s: %v", fileName, err)
+				continue
 			}
-			err = writer.Flush()
-			if err != nil {
-				return
-			}
-			err = file.Close()
+			err := writer.Flush()
 			if err != nil {
 				return
 			}
-		}
-	} else {
-		// 標準出力に書き出す処理
-		for logEvent := range logChannel {
-			fmt.Println(logEvent.Message)
+		} else {
+			fmt.Printf("%s: %s\n", logEvent.Timestamp.Format(time.RFC3339), logEvent.Message)
 		}
 	}
 }

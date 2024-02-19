@@ -12,12 +12,12 @@ import (
 
 var (
 	region    = flag.String("region", "ap-northeast-1", "AWS Region")
-	startTime = flag.String("s", "2024-02-01", "Start time")
-	endTime   = flag.String("e", "2024-02-02", "End time")
-	mode      = flag.String("mode", "stdout", "Mode: stdout or file")
+	startDate = flag.String("s", "2024-02-01", "Start date (inclusive) in YYYY-MM-DD format")
+	endDate   = flag.String("e", "2024-02-02", "End date (exclusive) in YYYY-MM-DD format")
+	mode      = flag.String("mode", "stdout", "Output mode: stdout or file")
 	logGroup  = flag.String("log-group", "", "Log group name")
 	logStream = flag.String("log-stream", "", "Log stream name (comma separated)")
-	profile   = flag.String("p", "default", "aws profile name")
+	profile   = flag.String("profile", "default", "AWS profile name")
 )
 
 func splitLogStreamNames(logStream string) []string {
@@ -26,19 +26,22 @@ func splitLogStreamNames(logStream string) []string {
 
 const shortForm = "2006-01-02"
 
-func init() {
+func main() {
 	flag.Parse()
-	startTime, err := time.Parse(shortForm, *startTime)
+
+	// Parse start and end dates
+	startTime, err := time.Parse(shortForm, *startDate)
 	if err != nil {
-		log.Fatalf("Failed to parse start time: %v", err)
+		log.Fatalf("Failed to parse start date: %v", err)
 	}
-	endTime, err := time.Parse(shortForm, *endTime)
+	endTime, err := time.Parse(shortForm, *endDate)
 	if err != nil {
-		log.Fatalf("Failed to parse end time: %v", err)
+		log.Fatalf("Failed to parse end date: %v", err)
 	}
 
+	// Validate input
 	if startTime.After(endTime) {
-		log.Fatalf("Start time is after end time")
+		log.Fatalf("Start date must be before end date")
 	}
 	if *logGroup == "" {
 		log.Fatalf("Log group name is required")
@@ -46,27 +49,24 @@ func init() {
 	if *logStream == "" {
 		log.Fatalf("Log stream name is required")
 	}
-}
 
-func main() {
-	logStreamNames := splitLogStreamNames(*logStream)
-	startTime, _ := time.Parse(shortForm, *startTime)
-	endTime, _ := time.Parse(shortForm, *endTime)
-
+	// Initialize AWS CloudWatch Logs client
 	cwLogsClient, err := cloudwatch.New(*region, *profile)
 	if err != nil {
-		log.Fatalf("failed %s", err)
+		log.Fatalf("Failed to create AWS CloudWatch Logs client: %v", err)
 	}
-	var wg sync.WaitGroup
 
+	// Process log streams
+	logStreamNames := splitLogStreamNames(*logStream)
 	logChannel := make(chan cloudwatch.LogEvent, 10)
 	go cloudwatch.WriteLogEvents(logChannel, *mode)
 
+	var wg sync.WaitGroup
 	for _, logStreamName := range logStreamNames {
 		wg.Add(1)
-		go func(logStreamName string) {
+		go func(name string) {
 			defer wg.Done()
-			cloudwatch.GetLogEvents(cwLogsClient, *logGroup, logStreamName, startTime, endTime, logChannel)
+			cloudwatch.GetLogEvents(cwLogsClient, *logGroup, name, startTime, endTime, logChannel)
 		}(logStreamName)
 	}
 
