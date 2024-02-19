@@ -117,7 +117,7 @@ func WriteLogEvents(logChannel <-chan LogEvent, modeStr string) {
 				return
 			}
 		} else {
-			fmt.Printf("%s: %s\n", logEvent.Timestamp.Format(time.RFC3339), logEvent.Message)
+			fmt.Println(logEvent.Message)
 		}
 	}
 }
