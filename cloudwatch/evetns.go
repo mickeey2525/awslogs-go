@@ -108,7 +108,7 @@ func WriteLogEvents(logChannel <-chan LogEvent, modeStr string) {
 			fileMutex.Unlock()
 
 			writer := bufio.NewWriter(file)
-			if _, err := writer.WriteString(fmt.Sprintf("%s: %s\n", logEvent.Timestamp.Format(time.RFC3339), logEvent.Message)); err != nil {
+			if _, err := writer.WriteString(logEvent.Message + "\n"); err != nil {
 				log.Printf("Failed to write to file %s: %v", fileName, err)
 				continue
 			}
