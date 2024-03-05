@@ -25,14 +25,23 @@ type LogEvent struct {
 	Message       string
 }
 
-func GetLogEvents(client *cloudwatchlogs.Client, logGroupName, logStreamName string, startTime, endTime time.Time, logChannel chan<- LogEvent) {
+func GetLogEvents(client *cloudwatchlogs.Client, logGroupName, logStreamName, logGroupIdentifier string, startTime, endTime time.Time, logChannel chan<- LogEvent) {
 	var lastToken *string
-
-	input := &cloudwatchlogs.GetLogEventsInput{
-		LogGroupName:  aws.String(logGroupName),
-		LogStreamName: aws.String(logStreamName),
-		StartTime:     aws.Int64(startTime.UnixMilli()),
-		EndTime:       aws.Int64(endTime.UnixMilli()),
+	var input = &cloudwatchlogs.GetLogEventsInput{}
+	if logGroupName == "" {
+		input = &cloudwatchlogs.GetLogEventsInput{
+			LogGroupIdentifier: aws.String(logGroupIdentifier),
+			StartTime:          aws.Int64(startTime.UnixMilli()),
+			EndTime:            aws.Int64(endTime.UnixMilli()),
+			LogStreamName:      aws.String(logStreamName),
+		}
+	} else {
+		input = &cloudwatchlogs.GetLogEventsInput{
+			LogGroupName:  aws.String(logGroupName),
+			LogStreamName: aws.String(logStreamName),
+			StartTime:     aws.Int64(startTime.UnixMilli()),
+			EndTime:       aws.Int64(endTime.UnixMilli()),
+		}
 	}
 
 	for {

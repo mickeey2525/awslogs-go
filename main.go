@@ -11,13 +11,14 @@ import (
 )
 
 var (
-	region    = flag.String("region", "ap-northeast-1", "AWS Region")
-	startTime = flag.String("s", "2024-02-01", "Start time")
-	endTime   = flag.String("e", "2024-02-02", "End time")
-	mode      = flag.String("mode", "stdout", "Mode: stdout or file")
-	logGroup  = flag.String("log-group", "", "Log group name")
-	logStream = flag.String("log-stream", "", "Log stream name (comma separated)")
-	profile   = flag.String("p", "", "aws profile name")
+	region        = flag.String("region", "ap-northeast-1", "AWS Region")
+	startTime     = flag.String("s", "2024-02-01", "Start time")
+	endTime       = flag.String("e", "2024-02-02", "End time")
+	mode          = flag.String("mode", "stdout", "Mode: stdout or file")
+	logIdentifier = flag.String("log-identifier", "", "Log identifier Name")
+	logGroup      = flag.String("log-group", "", "Log group name")
+	logStream     = flag.String("log-stream", "", "Log stream name (comma separated)")
+	profile       = flag.String("p", "", "aws profile name")
 )
 
 func splitLogStreamNames(logStream string) []string {
@@ -40,8 +41,8 @@ func init() {
 	if startTime.After(endTime) {
 		log.Fatalf("Start time is after end time")
 	}
-	if *logGroup == "" {
-		log.Fatalf("Log group name is required")
+	if *logGroup == "" && *logIdentifier == "" {
+		log.Fatalf("Log group name or LogIdentifier is required")
 	}
 	if *logStream == "" {
 		log.Fatalf("Log stream name is required")
@@ -66,7 +67,7 @@ func main() {
 		wg.Add(1)
 		go func(logStreamName string) {
 			defer wg.Done()
-			cloudwatch.GetLogEvents(cwLogsClient, *logGroup, logStreamName, startTime, endTime, logChannel)
+			cloudwatch.GetLogEvents(cwLogsClient, *logGroup, logStreamName, *logIdentifier, startTime, endTime, logChannel)
 		}(logStreamName)
 	}
 
